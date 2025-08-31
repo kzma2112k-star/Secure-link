@@ -1,0 +1,230 @@
+<script>
+    // Simulated database of known malicious domains for demo purposes
+    const maliciousDomains = [
+        "malicious.com",
+        "phishing.net",
+        "badwebsite.org",
+        "dangerous-site.io"
+    ];
+
+    // Simulated global threat intelligence feed (randomized for demo)
+    const threatIntelligence = [
+        "No recent threats detected.",
+        "Reported phishing activity in last 30 days.",
+        "Malware distribution detected recently.",
+        "Domain flagged for suspicious behavior.",
+        "Clean domain with good reputation."
+    ];
+
+    // Utility function to simulate async API call delay
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Function to simulate SSL certificate check
+    function checkSSL(url) {
+        return new Promise(async (resolve) => {
+            await delay(500);
+            const hasSSL = url.startsWith("https://");
+            if (!hasSSL) {
+                resolve({ status: "Not Found", valid: false, details: "No SSL certificate detected. Connection is not secure." });
+                return;
+            }
+            // Simulate certificate validity (90% chance valid)
+            const valid = Math.random() < 0.9;
+            resolve({
+                status: valid ? "Valid" : "Expired",
+                valid,
+                details: valid ? "SSL certificate is valid and trusted." : "SSL certificate has expired or is invalid."
+            });
+        });
+    }
+
+    // Function to simulate malware detection
+    function checkMalware(domain) {
+        return new Promise(async (resolve) => {
+            await delay(700);
+            const isMalicious = maliciousDomains.includes(domain.toLowerCase());
+            resolve({
+                status: isMalicious ? "Malware Detected" : "Clean",
+                detected: isMalicious,
+                details: isMalicious ? "This domain is known to distribute malware." : "No malware detected on this domain."
+            });
+        });
+    }
+
+    // Function to simulate phishing risk analysis
+    function checkPhishing(domain) {
+        return new Promise(async (resolve) => {
+            await delay(600);
+            // Random phishing risk with higher risk if domain is malicious
+            const highRisk = maliciousDomains.includes(domain.toLowerCase());
+            const riskLevel = highRisk ? "High" : (Math.random() < 0.15 ? "Medium" : "Low");
+            const details = {
+                "Low": "No phishing activity detected.",
+                "Medium": "Some suspicious activity detected, caution advised.",
+                "High": "High risk of phishing detected for this domain."
+            };
+            resolve({ riskLevel, details: details[riskLevel] });
+        });
+    }
+
+    // Function to simulate reputation score calculation
+    function calculateReputation(domain) {
+        return new Promise(async (resolve) => {
+            await delay(400);
+            // Lower reputation if domain is malicious or phishing risk high
+            const baseScore = 80 + Math.floor(Math.random() * 20); // 80-99
+            const penalty = maliciousDomains.includes(domain.toLowerCase()) ? 50 : 0;
+            const reputation = Math.max(0, baseScore - penalty);
+            resolve({
+                score: reputation,
+                details: reputation > 75 ? "Domain has a strong reputation." : "Domain reputation is poor or suspicious."
+            });
+        });
+    }
+
+    // Function to simulate domain age check
+    function checkDomainAge(domain) {
+        return new Promise(async (resolve) => {
+            await delay(300);
+            // Random domain age between 0 and 15 years
+            const ageYears = Math.floor(Math.random() * 16);
+            resolve({
+                age: ageYears,
+                details: ageYears > 2 ? "Domain is well established." : "Domain is relatively new, which may be suspicious."
+            });
+        });
+    }
+
+    // Function to simulate global threat intelligence check
+    function checkThreatIntelligence(domain) {
+        return new Promise(async (resolve) => {
+            await delay(500);
+            // Randomly pick a threat intelligence message, worse if domain malicious
+            let message;
+            if (maliciousDomains.includes(domain.toLowerCase())) {
+                message = threatIntelligence[1]; // Reported phishing activity
+            } else {
+                message = threatIntelligence[Math.floor(Math.random() * threatIntelligence.length)];
+            }
+            resolve({ message });
+        });
+    }
+
+    async function scanURL() {
+        const urlInput = document.querySelector('.url-input');
+        const url = urlInput.value.trim();
+
+        if (!url) {
+            alert('Please enter a valid URL to scan');
+            return;
+        }
+
+        // Validate URL format
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(url);
+        } catch (e) {
+            alert('Please enter a valid URL format (including http:// or https://)');
+            return;
+        }
+
+        // Show loading animation
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        loading.classList.add('visible');
+        results.classList.remove('visible');
+
+        // Extract domain for checks
+        const domain = parsedUrl.hostname;
+
+        // Run all checks concurrently
+        const [
+            sslResult,
+            malwareResult,
+            phishingResult,
+            reputationResult,
+            domainAgeResult,
+            threatIntelResult
+        ] = await Promise.all([
+            checkSSL(url),
+            checkMalware(domain),
+            checkPhishing(domain),
+            calculateReputation(domain),
+            checkDomainAge(domain),
+            checkThreatIntelligence(domain)
+        ]);
+
+        // Determine overall security status
+        let overallStatus = "Secure";
+        let statusClass = "status-safe";
+
+        if (malwareResult.detected || phishingResult.riskLevel === "High" || !sslResult.valid || reputationResult.score < 50) {
+            overallStatus = "Dangerous";
+            statusClass = "status-danger";
+        } else if (phishingResult.riskLevel === "Medium" || reputationResult.score < 75) {
+            overallStatus = "Warning";
+            statusClass = "status-warning";
+        }
+
+        // Hide loading
+        loading.classList.remove('visible');
+
+        // Update UI with results
+        document.getElementById('scan-time').textContent = new Date().toLocaleString();
+        const statusEl = document.getElementById('status');
+        statusEl.className = `result-status ${statusClass}`;
+        statusEl.textContent = overallStatus;
+
+        document.getElementById('url-type').textContent = sslResult.valid ? "HTTPS Secure" : "HTTP (Not Secure)";
+        document.getElementById('ssl-status').textContent = sslResult.status;
+        document.getElementById('ssl-status').title = sslResult.details;
+
+        document.getElementById('malware-status').textContent = malwareResult.status;
+        document.getElementById('malware-status').title = malwareResult.details;
+
+        document.getElementById('phishing-risk').textContent = phishingResult.riskLevel;
+        document.getElementById('phishing-risk').title = phishingResult.details;
+
+        document.getElementById('reputation-score').textContent = `${reputationResult.score}/100`;
+        document.getElementById('reputation-score').title = reputationResult.details;
+
+        document.getElementById('domain-age').textContent = `${domainAgeResult.age} year${domainAgeResult.age !== 1 ? 's' : ''}`;
+        document.getElementById('domain-age').title = domainAgeResult.details;
+
+        // Add a new detail for Global Threat Intelligence
+        let threatIntelEl = document.getElementById('threat-intel');
+        if (!threatIntelEl) {
+            const container = document.querySelector('.result-details');
+            threatIntelEl = document.createElement('div');
+            threatIntelEl.className = 'detail-item';
+            threatIntelEl.innerHTML = `
+                <div class="detail-label">Global Threat Intelligence</div>
+                <div class="detail-value" id="threat-intel"></div>
+            `;
+            container.appendChild(threatIntelEl);
+        }
+        document.getElementById('threat-intel').textContent = threatIntelResult.message;
+        document.getElementById('threat-intel').title = "Latest global threat intelligence data for this domain.";
+
+        // Show results
+        results.classList.add('visible');
+
+        // Scroll to results
+        results.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Add enter key support
+    document.querySelector('.url-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            scanURL();
+        }
+    });
+
+    // Initialize with current date
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('scan-time').textContent = new Date().toLocaleString();
+    });
+          </script>
+          
